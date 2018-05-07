@@ -1,0 +1,126 @@
+#! /bin/sh
+
+set -e
+
+# Remove bootclean flag files (precaution against symlink attacks)
+rm -f /tmp/.clean /run/.clean /run/lock/.clean
+
+#
+# Make list of mountpoints to unmount in reverse order of their creation
+#
+
+PROTECTED_MOUNTS="$(sed -n ':a;/^[^ ]* \(\/\|\/usr\) /!{H;n;ba};{H;s/.*//;x;s/\n//;p}' /proc/mounts
+)"
+WEAK_MTPTS="" # be gentle, don't use force
+REG_MTPTS=""
+TMPFS_MTPTS=""
+NET_MTMPTS=""
+while read -r DEV MTPT FSTYPE OPTS REST
+do
+	# filter certain mountpoints
+	case "$MTPT" in
+	  /|/proc|/dev|/.dev|/dev/pts|/dev/shm|/dev/.static/dev|/dev/*|/proc/*|/sys|/sys/*|/run|/run/*|/dev/vcs) 
+		continue
+		;;
+	esac
+	# network filesystem mountpoints
+	case "$FSTYPE" in
+	  nfs|nfs4|smbfs|ncp|ncpfs|cifs|coda|ocfs2|gfs|ceph)
+		NET_MTPTS="$MTPT $NET_MTPTS"
+		continue
+		;;
+	  proc|procfs|linprocfs|devpts|usbfs|usbdevfs|sysfs)
+		NET_MTPTS="$MTPT $NET_MTPTS"
+		continue
+		;;
+	esac
+	case "$OPTS" in
+	  _netdev|*,_netdev|_netdev,*|*,_netdev,*)
+		NET_MTPTS="$MTPT $NET_MTPTS"
+		continue
+		;;
+	esac
+	#  local filesystems
+	echo "$PROTECTED_MOUNTS" | grep -qs "^$DEV $MTPT " && continue
+	case "$FSTYPE" in
+	  tmpfs)
+		TMPFS_MTPTS="$MTPT $TMPFS_MTPTS"
+		;;
+	  *)
+		if echo "$PROTECTED_MOUNTS" | grep -qs "^$DEV "; then
+                        WEAK_MTPTS="$MTPT $WEAK_MTPTS"
+                else
+                        REG_MTPTS="$MTPT $REG_MTPTS"
+                fi
+		;;
+	esac
+done < /proc/mounts
+
+# emit unmounting-filesystem hook point so any upstart jobs that
+# require the filesystem to be mounted can be stopped
+if [ -x /sbin/initctl ]; then
+        initctl --quiet emit unmounting-filesystem 2>/dev/null || true
+fi
+
+# Synchronize cached writes to persistent storage
+sync
+
+#
+# Unmount remote filesystems
+#
+if [ "$NET_MTPTS" ]
+then
+	echo -n "Unmounting remote and non-toplevel virtual filesystems... "
+	fstab-decode umount -f -l $NET_MTPTS && echo "done" || echo "failed"
+fi
+
+# emit unmounted-remote-filesystems hook point so any upstart jobs
+# that support remote filesystems can now stop
+if [ -x /sbin/initctl ]; then
+	initctl --quiet emit unmounted-remote-filesystems 2>/dev/null || true
+fi
+
+#
+# Unmount tmpfs filesystems before deactivating swap to avoid
+# running out of memory if the tmpfs filesystems use a lot of space.
+#
+if [ "$TMPFS_MTPTS" ]
+then
+	echo -n "Unmounting tmpfs filesystems... "
+	fstab-decode umount $TMPFS_MTPTS && echo "done" || echo "failed"
+fi
+
+#
+# Deactivate swap
+#
+echo -n "Deactivating swap... "
+swapoff -a >/dev/null && echo "done" || echo "failed"
+
+#
+# Unmount local filesystems
+#
+if [ "$WEAK_MTPTS" ]; then
+	echo -n "Unmounting local filesystems (weak)... "
+	# Do not use -f umount option for WEAK_MTPTS
+	fstab-decode umount -r -d $WEAK_MTPTS && echo "done" || echo "failed"
+fi
+if [ "$REG_MTPTS" ]
+then
+	echo -n "Unmounting local filesystems (strong)... "
+	fstab-decode umount -f -r -d $REG_MTPTS && echo "done" || echo "failed"
+fi
+
+#
+# Remount root and /usr as read only
+#
+remount_ro () {
+	echo -n "Remounting $1 partition read only... "
+	mount -n -o remount,ro -t dummytype dummydev $2 2>/dev/null \
+	|| mount -n -o remount,ro dummydev $2 2>/dev/null \
+	|| mount -n -o remount,ro $2 && echo "done" || echo "failed"
+}
+
+#remount_ro root /
+#if mountpoint -q /usr; then
+#	remount_ro /usr /usr
+#fi
