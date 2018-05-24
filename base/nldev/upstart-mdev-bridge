@@ -17,14 +17,11 @@ case "$ACTION" in
 	add)
 		suffix=added
 		;;
-	remove)
-		suffix=removed
-		;;
-	change)
-		suffix=changed
+	remove|change)
+		suffix="${ACTION}d"
 		;;
 	*)
-		die "invalid action: $ACTION"
+		suffix="${ACTION}"
 		;;
 esac
 
@@ -43,4 +40,4 @@ for e in $("$BUSYBOX" cat /proc/self/environ | "$BUSYBOX" tr '\0' ' '); do
 	esac
 done
 
-"$INITCTL" emit "$EVENT" ${ENVIRONMENT} || die "initctl invocation failed"
+"$INITCTL" emit -n "$EVENT" ${ENVIRONMENT} || die "initctl invocation failed"
