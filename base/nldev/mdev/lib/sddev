@@ -1,0 +1,68 @@
+#!/bin/sh
+
+# $MDEV
+# $ACTION
+
+symlink() {
+	local dir="${1}"
+	local symlink="${dir}/${2}"
+	local action="${3}"
+
+	case ${action} in
+		add)
+			test -e "${symlink}" && rm -f "${symlink}"
+			mkdir -p "${dir}"
+			ln -snf "${MDEV}" "${symlink}"
+			;;
+		remove)
+			test -e "${symlink}" && \
+				test "$(readlink ${symlink})" = "{$MDEV}" && \
+				rm -f "${symlink}"
+			rmdir "${dir}" 2>/dev/null
+			;;
+	esac
+}
+
+# Skip temp cryptsetup nodes.
+case "${MDEV}" in
+	'dm-'[0-9]*)
+		case "$(cat "/sys/block/${MDEV}/dm/name")" in
+			'temporary-cryptsetup-'[0-9]*)
+				return 0
+				;;
+		esac
+	;;
+esac
+
+blkidstr=$(blkid $(pwd)/${MDEV})
+UUID=$(echo -n "$blkidstr" \
+	| grep UUID \
+	| sed -e 's,.*UUID="\([^"]*\)".*,\1,')
+LABEL=$(echo -n "$blkidstr" \
+	| grep LABEL \
+	| sed -e 's,.*LABEL="\([^"]*\)".*,\1,')
+
+BLOCK=""
+[ -e /sys${DEVPATH}/dev ] && BLOCK=$(cat /sys${DEVPATH}/dev)
+
+DMNAME=""
+[ -f "/sys/block/${MDEV}/dm/name" ] && DMNAME="$(cat /sys/block/${MDEV}/dm/name)"
+
+case "$ACTION" in
+	add|"")
+		[ -n "${UUID}" ] && symlink disk/by-uuid "${UUID}" add
+		[ -n "${LABEL}" ] && symlink disk/by-label "${LABEL}" add
+		[ -n "${BLOCK}" ] && symlink block "${BLOCK}" add
+		[ -n "${DMNAME}" ] && symlink mapper "${DMNAME}" add
+		;;
+	remove)
+		[ -n "${UUID}" ] && symlink disk/by-uuid "${UUID}" remove
+		[ -n "${LABEL}" ] && symlink disk/by-label "${LABEL}" remove
+		[ -n "${BLOCK}" ] && symlink block "${BLOCK}" remove
+		[ -n "${DMNAME}" ] && symlink mapper "${DMNAME}" remove
+		rmdir disk/ 2>/dev/null
+		;;
+esac
+
+exit 0
+

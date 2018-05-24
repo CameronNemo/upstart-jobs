@@ -1,0 +1,30 @@
+#!/bin/busybox ash
+
+[ -n "$MDEV" ] || exit 0
+[ -n "$DEVNAME" ] || exit 0
+[ "$SUBSYSTEM" = "usb" ] || exit 0
+
+BUSPATH=$(dirname "$DEVNAME")
+DEVICENAME=$(basename "$DEVNAME")
+
+case "$ACTION" in
+	add|"")
+		if [ ! -d "$BUSPATH" ]; then
+			mkdir -p "$BUSPATH"
+		fi
+		mv "$MDEV" "$BUSPATH/$DEVICENAME"
+
+		case "$PRODUCT" in
+			*)
+				;;
+		esac
+		;;
+	remove)
+		if rm -f "$BUSPATH/$DEVICENAME" 2>/dev/null
+		then
+			rmdir -p "$BUSNAME" 2>/dev/null
+		fi
+		;;
+esac
+
+exit 0

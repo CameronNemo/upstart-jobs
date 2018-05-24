@@ -1,0 +1,46 @@
+#! /bin/sh
+
+die() {
+	echo $@ >&2
+	exit 1
+}
+
+BUSYBOX="/bin/busybox"
+INITCTL="/sbin/initctl"
+
+test -x "$BUSYBOX" || die "could not find busybox"
+test -x "$INITCTL" || die "could not find initctl"
+
+"$BUSYBOX" mdev || die "mdev invocation failed"
+
+case "$ACTION" in
+	add)
+		suffix=added
+		;;
+	remove)
+		suffix=removed
+		;;
+	change)
+		suffix=changed
+		;;
+	*)
+		die "invalid action: $ACTION"
+		;;
+esac
+
+EVENT="${SUBSYSTEM}-device-${suffix}"
+ENVIRONMENT=""
+
+for e in $("$BUSYBOX" cat /proc/self/environ | "$BUSYBOX" tr '\0' ' '); do
+	# skip PWD, PATH
+	case "$e" in
+		PATH=*|PWD=*)
+			continue
+			;;
+		*)
+			ENVIRONMENT="${ENVIRONMENT}${e} "
+			;;
+	esac
+done
+
+"$INITCTL" emit "$EVENT" ${ENVIRONMENT} || die "initctl invocation failed"

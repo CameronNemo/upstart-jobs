@@ -1,0 +1,23 @@
+#!/bin/busybox ash
+
+[ -n "$MDEV" ] || exit 0
+[ -n "$DEVNAME" ] || exit 0
+[ "$SUBSYSTEM" = "dvb" ] || exit 0
+
+MDEV=$(basename ${MDEV})
+DVBDEVPATH=$(dirname "${DEVNAME}")
+DVBPATH=$(dirname "${DVBDEVPATH}")
+
+case "$ACTION" in
+	add|"")
+		mkdir -p ${DVBDEVPATH}
+		mv ${MDEV} ${DVBDEVPATH}
+		;;
+	remove)
+		rm -f ${DEVNAME}
+		rmdir ${DVBDEVPATH} 2>/dev/null
+		rmdir ${DVBPATH} 2>/dev/null
+esac
+
+exit 0
+
