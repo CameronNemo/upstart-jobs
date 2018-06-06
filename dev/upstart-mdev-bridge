@@ -6,12 +6,11 @@ die() {
 }
 
 BUSYBOX="/bin/busybox"
-INITCTL="/sbin/initctl"
-
 test -x "$BUSYBOX" || die "could not find busybox"
-test -x "$INITCTL" || die "could not find initctl"
-
 "$BUSYBOX" mdev || die "mdev invocation failed"
+
+INITCTL="/sbin/initctl"
+test -x "$INITCTL" || die "could not find initctl"
 
 case "$ACTION" in
 	add)
@@ -28,16 +27,19 @@ esac
 EVENT="${SUBSYSTEM}-device-${suffix}"
 ENVIRONMENT=""
 
-for e in $("$BUSYBOX" cat /proc/self/environ | "$BUSYBOX" tr '\0' ' '); do
+OLDIFS="$IFS"
+IFS='\t'
+for e in $("$BUSYBOX" cat /proc/self/environ | "$BUSYBOX" tr '\0' '\t'); do
 	# skip PWD, PATH
 	case "$e" in
-		PATH=*|PWD=*)
+		PATH=*|PWD=*|UPSTART_JOB=*|UPSTART_INSTANCE=*)
 			continue
 			;;
 		*)
-			ENVIRONMENT="${ENVIRONMENT}${e} "
+			ENVIRONMENT="${ENVIRONMENT}'${e}' "
 			;;
 	esac
 done
+IFS="$OLDIFS"
 
 "$INITCTL" emit -n "$EVENT" ${ENVIRONMENT} || die "initctl invocation failed"
