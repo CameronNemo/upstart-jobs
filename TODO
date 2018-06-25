@@ -1,7 +1,6 @@
 combine repo with lp:~upstart-devel/upstart/upstart-jobs
+ - rpc
  - samba
- - lxc, docker, libvirt
- - ceph, gluster
 cluster
  - pacemaker
  - awx tower
@@ -12,5 +11,4 @@ firewall
 misc
  - keepalived
  - conntrackd
- - ulogd
  - netdata
