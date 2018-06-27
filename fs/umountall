@@ -80,6 +80,8 @@ if [ -x /sbin/initctl ]; then
 	initctl --quiet emit unmounted-remote-filesystems 2>/dev/null || true
 fi
 
+test ! -e /run/container_type || exit 0
+
 #
 # Unmount tmpfs filesystems before deactivating swap to avoid
 # running out of memory if the tmpfs filesystems use a lot of space.
@@ -120,7 +122,7 @@ remount_ro () {
 	|| mount -n -o remount,ro $2 && echo "done" || echo "failed"
 }
 
-#remount_ro root /
-#if mountpoint -q /usr; then
-#	remount_ro /usr /usr
-#fi
+remount_ro root /
+if mountpoint -q /usr; then
+	remount_ro /usr /usr
+fi
