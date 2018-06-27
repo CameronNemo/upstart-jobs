@@ -1,6 +1,3 @@
-combine repo with lp:~upstart-devel/upstart/upstart-jobs
- - rpc
- - samba
 cluster
  - pacemaker
  - awx tower
