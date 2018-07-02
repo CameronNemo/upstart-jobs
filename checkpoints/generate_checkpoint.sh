@@ -3,7 +3,7 @@
 set -e
 
 prog="$(basename $0)"
-template_file="template.conf"
+template_file="checkpoint.conf.in"
 
 function usage() {
 	cat <<EOF
