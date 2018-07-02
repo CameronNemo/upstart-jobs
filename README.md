@@ -36,17 +36,29 @@ A job that will start before and stop after the checkpoint:
 
 ### basic: bring up Upstart bridges
 
-Upstart provides extensibility through the use of bridges. Any privileged process may emit Upstart events, and the `file` and `socket` events are emitted exclusively by Upstart bridges.
+During the basic checkpoint, the system logging daemon, the DNS server, and most of Upstart's bridges will be brought up.
+
+Upstart provides extensibility through the use of its bridges. Any privileged process may emit Upstart events, and the `file` and `socket` events are emitted exclusively by Upstart bridges.
 
 ### multiuser
 
+Common services will likely be a part of this checkpoint. They can assume the basic checkpoint to have reached, and should not need to specify any network, DNS, syslog, filesystem, or other events to rely on those resources being available.
+
 #### syslog
+
+This is a domain specific checkpoint that is intended to be hooked into by any logging services that wish to be considered a part of the basic checkpoint. At boot, these logging services will be prioritized higher than multiuser services.
 
 #### nss-lookup (named)
 
+Daemons that provide name resolution should hook into this checkpoint.
+
 #### rc
 
+The rc system is invoked after the multiuser checkpoint, and any services that are a part of it, are completely started.
+
 #### single user mode
+
+Single user rc scripts are not invoked. All single user and early boot services must be started through Upstart jobs.
 
 ### login
 
